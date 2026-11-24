@@ -1,0 +1,70 @@
+<resources>
+    <string name="app_name">Vesper</string>
+
+    <!-- Login Screen -->
+    <string name="login_title">Vesper</string>
+    <string name="login_subtitle">Private on-device assistant.</string>
+    <string name="login_continue_google">Continue with Google</string>
+    <string name="login_continue_guest">Continue as Guest</string>
+    <string name="login_signing_in">Authenticating…</string>
+    <string name="login_web_client_id_hint">Configure WEB_CLIENT_ID in LoginScreen.kt for live Google Sign-In, or tap Continue as Guest.</string>
+
+    <!-- Top Bar -->
+    <string name="cd_open_navigation_drawer">Open navigation drawer</string>
+    <string name="cd_execution_mode_selector">Select execution mode</string>
+    <string name="cd_privacy_sandbox_status">Privacy and sandbox status</string>
+    <string name="cd_user_avatar">User profile avatar</string>
+    <string name="privacy_sandbox_banner">Mic Standby • Local Sandbox Active</string>
+
+    <!-- Execution Modes -->
+    <string name="mode_auto_hybrid">Auto Hybrid</string>
+    <string name="mode_local_only">Local Only</string>
+    <string name="mode_cloud_research">Cloud Research</string>
+    <string name="mode_pill_hybrid">Hybrid</string>
+    <string name="mode_pill_local">Local</string>
+    <string name="mode_pill_cloud">Cloud</string>
+
+    <!-- Empty State -->
+    <string name="empty_greeting_prefix">Hi %1$s</string>
+    <string name="empty_subtitle">What\'s on your mind</string>
+
+    <!-- Chat Feed -->
+    <string name="tag_local_action">LOCAL ACTION</string>
+    <string name="tag_research">RESEARCH</string>
+    <string name="tag_processing">PROCESSING</string>
+    <string name="cd_copy_response">Copy response</string>
+    <string name="cd_speak_response">Speak response</string>
+    <string name="speaking_response">Reading aloud…</string>
+
+    <!-- Input Capsule -->
+    <string name="input_placeholder">Ask or command…</string>
+    <string name="input_listening_placeholder">Listening on-device…</string>
+    <string name="cd_attach_media">Attach media or document</string>
+    <string name="cd_voice_input">Toggle on-demand voice listening</string>
+    <string name="cd_send_message">Send command</string>
+    <string name="cd_remove_attachment">Remove attachment</string>
+
+    <!-- Attachment Sheet -->
+    <string name="sheet_attach_title">Attach Context</string>
+    <string name="attach_camera">Camera</string>
+    <string name="attach_gallery">Gallery</string>
+    <string name="attach_document">Document</string>
+
+    <!-- Navigation Drawer -->
+    <string name="drawer_brand_title">VESPER</string>
+    <string name="drawer_new_chat">New Chat</string>
+    <string name="drawer_recent_threads">RECENT THREADS</string>
+    <string name="drawer_vault_settings">Vault &amp; Settings</string>
+    <string name="drawer_sign_out">Sign Out</string>
+
+    <!-- Vault & Settings Sheet -->
+    <string name="vault_title">Vault &amp; Settings</string>
+    <string name="vault_subtitle">Local-first controls and sandbox guarantees</string>
+    <string name="vault_sandbox_label">Local Sandbox Isolation</string>
+    <string name="vault_sandbox_desc">Restricts app actions to explicit user triggers</string>
+    <string name="vault_zero_listening_label">Zero Background Listening</string>
+    <string name="vault_zero_listening_desc">Microphone activates only on direct tap</string>
+    <string name="vault_haptics_label">Tactile Micro-Feedback</string>
+    <string name="vault_haptics_desc">Subtle haptic confirmation for local actions</string>
+    <string name="vault_clear_sessions">Clear Local Session History</string>
+</resources>

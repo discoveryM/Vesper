@@ -1,0 +1,6 @@
+{
+  "name": "Vesper",
+  "description": "Vesper — Private on-device AI assistant featuring an obsidian monochrome aesthetic, Google Credential Manager authentication, and minimalist Compose UI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
