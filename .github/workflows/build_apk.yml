@@ -39,3 +39,10 @@ jobs:
         with:
           name: Vesper-Debug-APK
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload Debug Keystore
+        uses: actions/upload-artifact@v4
+        with:
+          name: Permanent-Debug-Keystore
+          path: debug.keystore
+          
