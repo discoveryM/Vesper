@@ -1,9 +1,19 @@
 package com.example.ui.home
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.provider.Settings
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.launch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -20,6 +30,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -27,6 +38,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,39 +66,34 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.VolumeDown
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,6 +114,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -114,82 +123,156 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
 import com.example.R
+import com.example.ai.FreeAiModel
+import com.example.automation.AutomationProgressState
+import com.example.automation.VesperAutomationEngine
+import com.example.hardware.isVesperAccessibilityEnabled
+import com.example.resolver.AttachmentFile
+import com.example.resolver.InstalledAppInfo
 import com.example.ui.auth.UserProfile
-import com.example.ui.theme.VesperTheme
 import com.example.ui.theme.VesperTokens
 import com.example.ui.theme.capsuleHairlineBorder
 import com.example.ui.theme.hairlineBorder
-import java.util.UUID
+import com.example.vault.LocalPasswordVault
+import com.example.vault.SaveOnceCredentialSheet
+import com.example.vault.VaultHubBottomSheet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-enum class ExecutionMode(val pillLabel: String, val menuTitle: String, val subtitle: String) {
-  AUTO_HYBRID("Hybrid", "Auto Hybrid", "Routes device intents locally, research to cloud"),
-  LOCAL_ONLY("Local", "Local Only", "100% on-device execution • Zero external calls"),
-  CLOUD_RESEARCH("Cloud", "Cloud Research", "Deep synthesis with web & document reasoning"),
-}
-
-enum class ResponseTag {
-  LOCAL_ACTION,
-  RESEARCH,
-}
-
-enum class AttachmentKind(val label: String) {
-  CAMERA("Camera Capture"),
-  GALLERY("Photo Selected"),
-  DOCUMENT("Document Attached"),
-}
-
-@Immutable
-data class ChatMessage(
-  val id: String,
-  val isUser: Boolean,
-  val text: String,
-  val tag: ResponseTag? = null,
-  val attachmentLabel: String? = null,
-)
-
-@Immutable
-data class ConversationThread(
-  val id: String,
-  val title: String,
-  val preview: String,
-  val timeAgo: String,
-  val messages: List<ChatMessage>,
-)
 
 @Composable
 fun HomeScreen(
   userProfile: UserProfile,
+  incomingVoiceCommand: String?,
+  onConsumeVoiceCommand: () -> Unit,
   onSignOut: () -> Unit,
+  viewModel: HomeViewModel = viewModel(),
   modifier: Modifier = Modifier,
 ) {
+  val context = LocalContext.current
   val tokens = VesperTokens.colors
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
   val coroutineScope = rememberCoroutineScope()
   val listState = rememberLazyListState()
   val clipboardManager = LocalClipboardManager.current
 
-  var selectedMode by remember { mutableStateOf(ExecutionMode.AUTO_HYBRID) }
-  var messages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
-  var threads by remember { mutableStateOf(defaultRecentThreads()) }
-  var activeThreadId by remember { mutableStateOf<String?>(null) }
-  var inputText by remember { mutableStateOf("") }
-  var pendingAttachment by remember { mutableStateOf<AttachmentKind?>(null) }
-  var isListening by remember { mutableStateOf(false) }
-  var isGenerating by remember { mutableStateOf(false) }
-  var speakingMessageId by remember { mutableStateOf<String?>(null) }
-  var copiedMessageId by remember { mutableStateOf<String?>(null) }
   var showPrivacyCard by remember { mutableStateOf(false) }
   var showAttachmentSheet by remember { mutableStateOf(false) }
-  var showVaultSheet by remember { mutableStateOf(false) }
-  var localSandboxIsolation by remember { mutableStateOf(true) }
-  var zeroBackgroundListening by remember { mutableStateOf(true) }
+  var showVaultAppsSheet by remember { mutableStateOf(false) }
+  var showFreeKeysSheet by remember { mutableStateOf(false) }
+  var inlineRecognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+
+  // Forward voice command transcribed by floating overlay
+  LaunchedEffect(incomingVoiceCommand) {
+    if (!incomingVoiceCommand.isNullOrBlank()) {
+      viewModel.handleIncomingVoiceCommand(incomingVoiceCommand)
+      onConsumeVoiceCommand()
+    }
+  }
+
+  // Trigger BiometricPrompt when a saved-login automation requires verification
+  val activity = context as? FragmentActivity
+  LaunchedEffect(uiState.pendingBiometricWorkflow) {
+    val pending = uiState.pendingBiometricWorkflow ?: return@LaunchedEffect
+    if (activity == null) {
+      viewModel.onBiometricWorkflowApproved()
+      return@LaunchedEffect
+    }
+    LocalPasswordVault.authenticateWithBiometrics(
+      activity = activity,
+      title = "Verify to Auto-Fill ${pending.workflow.targetApp.label}",
+      subtitle = "Use fingerprint, face, or device PIN for ${pending.credentialMeta.username}",
+      onSuccess = { viewModel.onBiometricWorkflowApproved() },
+      onError = { viewModel.dismissBiometricWorkflow() },
+    )
+  }
+
+  // Real Attachment Launchers (Camera, Gallery, Document)
+  val cameraLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+      if (bitmap != null) viewModel.onCameraBitmapCaptured(bitmap)
+    }
+  val galleryLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+      if (uri != null) viewModel.onUriPicked(uri, "image/*")
+    }
+  val documentLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+      if (uri != null) viewModel.onUriPicked(uri, "*/*")
+    }
+
+  fun releaseInlineMic() {
+    inlineRecognizer?.let { r ->
+      runCatching { r.stopListening() }
+      runCatching { r.cancel() }
+      runCatching { r.destroy() }
+    }
+    inlineRecognizer = null
+    viewModel.setListening(false)
+  }
+
+  fun startInlineMicCapture() {
+    releaseInlineMic()
+    if (!SpeechRecognizer.isRecognitionAvailable(context)) return
+    val recognizer = SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
+    inlineRecognizer = recognizer
+    viewModel.setListening(true)
+    recognizer.setRecognitionListener(
+      object : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) = Unit
+        override fun onBeginningOfSpeech() = Unit
+        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onEndOfSpeech() {
+          runCatching { recognizer.stopListening() }
+        }
+        override fun onError(error: Int) {
+          releaseInlineMic()
+        }
+        override fun onResults(results: Bundle?) {
+          val text =
+            results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim()
+          releaseInlineMic()
+          if (!text.isNullOrEmpty()) {
+            viewModel.onInputChanged(text)
+          }
+        }
+        override fun onPartialResults(partialResults: Bundle?) {
+          val partial =
+            partialResults
+              ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+              ?.firstOrNull()
+              ?.trim()
+          if (!partial.isNullOrEmpty()) viewModel.onInputChanged(partial)
+        }
+        override fun onEvent(eventType: Int, params: Bundle?) = Unit
+      },
+    )
+    val intent =
+      Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+      }
+    runCatching { recognizer.startListening(intent) }.onFailure { releaseInlineMic() }
+  }
+
+  val micPermissionLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+      if (granted) startInlineMicCapture()
+    }
+
+  DisposableEffect(Unit) {
+    onDispose { releaseInlineMic() }
+  }
 
   BackHandler(enabled = drawerState.isOpen) {
     coroutineScope.launch { drawerState.close() }
@@ -202,69 +285,9 @@ fun HomeScreen(
     }
   }
 
-  LaunchedEffect(isListening) {
-    if (isListening) {
-      delay(2400L)
-      if (isListening) {
-        if (inputText.isBlank()) {
-          inputText = "Summarize today's focus items"
-        }
-        isListening = false
-      }
-    }
-  }
-
-  LaunchedEffect(messages.size, isGenerating) {
-    val target = (messages.size + if (isGenerating) 1 else 0) - 1
+  LaunchedEffect(uiState.messages.size, uiState.isGenerating) {
+    val target = (uiState.messages.size + if (uiState.isGenerating) 1 else 0) - 1
     if (target >= 0) listState.animateScrollToItem(target)
-  }
-
-  fun sendMessage() {
-    val trimmed = inputText.trim()
-    val attachment = pendingAttachment
-    if (trimmed.isEmpty() && attachment == null) return
-
-    val promptText = trimmed.ifEmpty { "Process ${attachment?.label ?: "attachment"}" }
-    val threadId = activeThreadId ?: UUID.randomUUID().toString()
-    val userMessage =
-      ChatMessage(
-        id = UUID.randomUUID().toString(),
-        isUser = true,
-        text = promptText,
-        attachmentLabel = attachment?.label,
-      )
-
-    activeThreadId = threadId
-    messages = messages + userMessage
-    inputText = ""
-    pendingAttachment = null
-    isListening = false
-    isGenerating = true
-
-    coroutineScope.launch {
-      delay(480L)
-      val (tag, reply) = generateMockResponse(promptText, selectedMode, attachment)
-      val assistantMessage =
-        ChatMessage(
-          id = UUID.randomUUID().toString(),
-          isUser = false,
-          text = reply,
-          tag = tag,
-        )
-      val updated = messages + assistantMessage
-      messages = updated
-      isGenerating = false
-      val existing = threads.find { it.id == threadId }
-      val newThread =
-        ConversationThread(
-          id = threadId,
-          title = existing?.title ?: promptText.take(34),
-          preview = reply.take(58),
-          timeAgo = "Just now",
-          messages = updated,
-        )
-      threads = listOf(newThread) + threads.filterNot { it.id == threadId }
-    }
   }
 
   ModalNavigationDrawer(
@@ -272,23 +295,35 @@ fun HomeScreen(
     scrimColor = tokens.canvasBackground.copy(alpha = 0.65f),
     drawerContent = {
       VesperDrawerContent(
-        threads = threads,
-        activeThreadId = activeThreadId,
+        threads = uiState.threads,
+        activeThreadId = uiState.activeThreadId,
+        isAccessibilityTriggerActive = isVesperAccessibilityEnabled(context),
+        hasAnyAiKey = uiState.freeAiKeys.hasAnyKey,
         onNewChat = {
-          activeThreadId = null
-          messages = emptyList()
-          isGenerating = false
+          viewModel.startNewChat()
           coroutineScope.launch { drawerState.close() }
         },
         onSelectThread = { thread ->
-          activeThreadId = thread.id
-          messages = thread.messages
-          isGenerating = false
+          viewModel.selectThread(thread)
           coroutineScope.launch { drawerState.close() }
         },
-        onOpenVault = {
+        onOpenPowerSettings = {
+          runCatching {
+            context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS))
+          }
+        },
+        onOpenAccessibilitySettings = {
+          runCatching {
+            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+          }
+        },
+        onOpenVaultApps = {
           coroutineScope.launch { drawerState.close() }
-          showVaultSheet = true
+          showVaultAppsSheet = true
+        },
+        onOpenFreeAiKeys = {
+          coroutineScope.launch { drawerState.close() }
+          showFreeKeysSheet = true
         },
         onSignOut = {
           coroutineScope.launch {
@@ -306,9 +341,9 @@ fun HomeScreen(
       topBar = {
         VesperTopBar(
           userProfile = userProfile,
-          selectedMode = selectedMode,
+          selectedModel = uiState.selectedModel,
           onOpenDrawer = { coroutineScope.launch { drawerState.open() } },
-          onSelectMode = { selectedMode = it },
+          onSelectModel = viewModel::selectModel,
           onPrivacyClick = { showPrivacyCard = !showPrivacyCard },
           onSignOut = onSignOut,
         )
@@ -322,7 +357,7 @@ fun HomeScreen(
             .padding(top = innerPadding.calculateTopPadding()),
       ) {
         AnimatedContent(
-          targetState = messages.isNotEmpty() || isGenerating,
+          targetState = uiState.messages.isNotEmpty() || uiState.isGenerating,
           transitionSpec = {
             (fadeIn(tween(240)) + slideInVertically(initialOffsetY = { it / 16 }))
               .togetherWith(fadeOut(tween(160)))
@@ -340,34 +375,35 @@ fun HomeScreen(
               LazyColumn(
                 state = listState,
                 contentPadding =
-                  PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 136.dp),
+                  PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 140.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
                 modifier = Modifier.fillMaxSize().widthIn(max = 680.dp).testTag("chat_feed"),
               ) {
-                items(messages, key = { it.id }) { msg ->
+                items(uiState.messages, key = { it.id }) { msg ->
                   if (msg.isUser) {
                     UserPillBubble(msg)
                   } else {
                     AssistantResponseBlock(
                       message = msg,
-                      isCopied = copiedMessageId == msg.id,
-                      isSpeaking = speakingMessageId == msg.id,
+                      isCopied = uiState.copiedMessageId == msg.id,
+                      isSpeaking = uiState.speakingMessageId == msg.id,
+                      onSelectAppFromChooser = { app ->
+                        viewModel.onAppChosenFromCard(msg.id, app)
+                      },
                       onCopy = {
                         clipboardManager.setText(AnnotatedString(msg.text))
-                        copiedMessageId = msg.id
-                        coroutineScope.launch {
-                          delay(1600L)
-                          if (copiedMessageId == msg.id) copiedMessageId = null
-                        }
+                        viewModel.markMessageCopied(msg.id)
                       },
-                      onSpeak = {
-                        speakingMessageId = if (speakingMessageId == msg.id) null else msg.id
-                      },
+                      onSpeak = { viewModel.toggleSpeakMessage(msg.id) },
                     )
                   }
                 }
-                if (isGenerating) {
-                  item(key = "processing") { ProcessingIndicator() }
+                if (uiState.isGenerating) {
+                  item(key = "synthesizing_indicator") {
+                    LiveSynthesisIndicator(
+                      statusLine = uiState.liveSynthesisStatus ?: stringResource(R.string.tag_processing),
+                    )
+                  }
                 }
               }
             }
@@ -380,7 +416,16 @@ fun HomeScreen(
           modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
         )
 
-        // Bottom Dock: Subtle obsidian fade + Floating Minimalist Input Capsule
+        // Phase 5: Minimalist Live Automation Progress Pill
+        AutomationProgressPill(
+          progress = uiState.automationProgress,
+          onDismiss = { VesperAutomationEngine.dismissProgress() },
+          modifier =
+            Modifier
+              .align(Alignment.TopCenter)
+              .padding(top = if (showPrivacyCard) 54.dp else 8.dp),
+        )
+
         Box(
           contentAlignment = Alignment.BottomCenter,
           modifier =
@@ -398,14 +443,24 @@ fun HomeScreen(
               ),
         ) {
           FloatingInputCapsule(
-            inputText = inputText,
-            pendingAttachment = pendingAttachment,
-            isListening = isListening,
-            onInputChanged = { inputText = it },
+            inputText = uiState.inputText,
+            pendingAttachment = uiState.pendingAttachment,
+            isListening = uiState.isListening,
+            onInputChanged = viewModel::onInputChanged,
             onOpenAttachments = { showAttachmentSheet = true },
-            onClearAttachment = { pendingAttachment = null },
-            onToggleListening = { isListening = !isListening },
-            onSend = ::sendMessage,
+            onClearAttachment = viewModel::clearAttachment,
+            onToggleListening = {
+              if (uiState.isListening) {
+                releaseInlineMic()
+              } else {
+                val granted =
+                  ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                    PackageManager.PERMISSION_GRANTED
+                if (granted) startInlineMicCapture()
+                else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+              }
+            },
+            onSend = { viewModel.submitCommand() },
           )
         }
       }
@@ -413,28 +468,46 @@ fun HomeScreen(
   }
 
   if (showAttachmentSheet) {
-    AttachmentBottomSheet(
+    AttachmentPickerSheet(
       onDismiss = { showAttachmentSheet = false },
-      onSelect = {
-        pendingAttachment = it
-        showAttachmentSheet = false
-      },
+      onCameraClick = { cameraLauncher.launch() },
+      onGalleryClick = { galleryLauncher.launch("image/*") },
+      onDocumentClick = { documentLauncher.launch("*/*") },
     )
   }
 
-  if (showVaultSheet) {
-    VaultSettingsBottomSheet(
-      localSandbox = localSandboxIsolation,
-      zeroListening = zeroBackgroundListening,
-      onToggleSandbox = { localSandboxIsolation = it },
-      onToggleZeroListening = { zeroBackgroundListening = it },
-      onClearHistory = {
-        activeThreadId = null
-        messages = emptyList()
-        threads = emptyList()
-        showVaultSheet = false
-      },
-      onDismiss = { showVaultSheet = false },
+  if (showVaultAppsSheet) {
+    VaultHubBottomSheet(
+      apps = uiState.installedApps,
+      disabledPackages = uiState.disabledPackages,
+      isLoadingApps = uiState.isLoadingApps,
+      credentials = uiState.vaultCredentials,
+      biometricLockEnabled = uiState.biometricLockEnabled,
+      onLoadApps = viewModel::loadInstalledAppsForVault,
+      onToggleApp = viewModel::toggleAppVaultPermission,
+      onSaveCredential = viewModel::saveVaultCredential,
+      onDeleteCredential = viewModel::deleteVaultCredential,
+      onReadPasswordTemp = viewModel::readVaultPasswordTemp,
+      onToggleBiometricLock = viewModel::toggleBiometricLock,
+      onDismiss = { showVaultAppsSheet = false },
+    )
+  }
+
+  uiState.pendingSaveOnceWorkflow?.let { pendingWorkflow ->
+    SaveOnceCredentialSheet(
+      appLabel = pendingWorkflow.targetApp.label,
+      initialUsername = pendingWorkflow.accountIdentifier.orEmpty(),
+      onSaveAndContinue = viewModel::onSaveOnceConfirmed,
+      onDismiss = viewModel::dismissSaveOnce,
+    )
+  }
+
+  if (showFreeKeysSheet) {
+    FreeAiKeysSheet(
+      currentKeys = uiState.freeAiKeys,
+      onSave = viewModel::saveFreeAiKeys,
+      onClear = viewModel::clearFreeAiKeys,
+      onDismiss = { showFreeKeysSheet = false },
     )
   }
 }
@@ -442,21 +515,20 @@ fun HomeScreen(
 @Composable
 private fun VesperTopBar(
   userProfile: UserProfile,
-  selectedMode: ExecutionMode,
+  selectedModel: FreeAiModel,
   onOpenDrawer: () -> Unit,
-  onSelectMode: (ExecutionMode) -> Unit,
+  onSelectModel: (FreeAiModel) -> Unit,
   onPrivacyClick: () -> Unit,
   onSignOut: () -> Unit,
 ) {
   val tokens = VesperTokens.colors
-  var modeExpanded by remember { mutableStateOf(false) }
+  var modelMenuExpanded by remember { mutableStateOf(false) }
   var avatarMenuExpanded by remember { mutableStateOf(false) }
 
   Box(
     modifier =
       Modifier.fillMaxWidth().statusBarsPadding().height(64.dp).padding(horizontal = 12.dp),
   ) {
-    // Left: Minimal 2-line menu icon
     IconButton(
       onClick = onOpenDrawer,
       modifier = Modifier.align(Alignment.CenterStart).size(48.dp).testTag("menu_button"),
@@ -480,18 +552,9 @@ private fun VesperTopBar(
       }
     }
 
-    // Center: Minimalist mode pill ("Hybrid ▾")
+    // Center: Free Multi-LLM Selector Pill (defaults to "Gemini 2.5 Flash ▾")
     Box(modifier = Modifier.align(Alignment.Center)) {
-      val dotColor by
-        animateColorAsState(
-          targetValue =
-            if (selectedMode == ExecutionMode.CLOUD_RESEARCH) {
-              tokens.accentSilverBlue
-            } else {
-              tokens.statusGreen
-            },
-          label = "mode_dot",
-        )
+      val isBeast = selectedModel == FreeAiModel.BEAST_MODE
       Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -500,55 +563,64 @@ private fun VesperTopBar(
             .minimumInteractiveComponentSize()
             .clip(CircleShape)
             .background(tokens.elevatedSurface)
-            .hairlineBorder(CircleShape, tokens.hairlineBorder)
-            .clickable(role = Role.Button) { modeExpanded = true }
+            .hairlineBorder(CircleShape, if (isBeast) tokens.focusedBorder else tokens.hairlineBorder)
+            .clickable(role = Role.Button) { modelMenuExpanded = true }
             .padding(horizontal = 14.dp, vertical = 7.dp)
-            .testTag("mode_pill"),
+            .testTag("model_selector_pill"),
       ) {
-        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(dotColor))
+        Box(
+          modifier =
+            Modifier
+              .size(6.dp)
+              .clip(CircleShape)
+              .background(if (isBeast) tokens.accentSilverBlue else tokens.statusGreen),
+        )
         Text(
-          text = selectedMode.pillLabel,
+          text = selectedModel.pillLabel,
           style = MaterialTheme.typography.labelLarge,
           color = tokens.textPrimary,
+          maxLines = 1,
         )
         Icon(
           imageVector = Icons.Outlined.KeyboardArrowDown,
-          contentDescription = stringResource(R.string.cd_execution_mode_selector),
+          contentDescription = stringResource(R.string.cd_select_ai_model),
           tint = tokens.textSecondary,
           modifier = Modifier.size(16.dp),
         )
       }
 
       DropdownMenu(
-        expanded = modeExpanded,
-        onDismissRequest = { modeExpanded = false },
-        offset = DpOffset((-42).dp, 8.dp),
+        expanded = modelMenuExpanded,
+        onDismissRequest = { modelMenuExpanded = false },
+        offset = DpOffset((-64).dp, 8.dp),
         containerColor = tokens.elevatedSurface,
         shape = RoundedCornerShape(18.dp),
         modifier =
           Modifier
-            .width(232.dp)
+            .width(304.dp)
             .hairlineBorder(RoundedCornerShape(18.dp), tokens.capsuleBorder),
       ) {
-        ExecutionMode.entries.forEach { mode ->
-          val active = mode == selectedMode
+        FreeAiModel.entries.forEach { model ->
+          val active = model == selectedModel
           DropdownMenuItem(
             onClick = {
-              onSelectMode(mode)
-              modeExpanded = false
+              onSelectModel(model)
+              modelMenuExpanded = false
             },
+            modifier = Modifier.testTag("model_option_${model.name.lowercase()}"),
             text = {
               Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                  text = mode.menuTitle,
+                  text = model.displayName,
                   style = MaterialTheme.typography.bodyMedium,
                   color = if (active) tokens.accentSilverBlue else tokens.textPrimary,
                 )
                 Text(
-                  text = mode.subtitle,
+                  text = model.subtitle,
                   style = MaterialTheme.typography.bodySmall,
                   color = tokens.textSecondary,
                   maxLines = 2,
+                  overflow = TextOverflow.Ellipsis,
                 )
               }
             },
@@ -567,7 +639,6 @@ private fun VesperTopBar(
       }
     }
 
-    // Right: Privacy Shield + User Google Profile Avatar (Coil AsyncImage with Initial Fallback)
     Row(
       verticalAlignment = Alignment.CenterVertically,
       modifier = Modifier.align(Alignment.CenterEnd),
@@ -594,10 +665,7 @@ private fun VesperTopBar(
               .clickable(role = Role.Button) { avatarMenuExpanded = true }
               .testTag("user_avatar_button"),
         ) {
-          UserProfileAvatar(
-            firstName = userProfile.firstName,
-            photoUri = userProfile.profilePictureUri,
-          )
+          UserProfileAvatar(userProfile.firstName, userProfile.profilePictureUri)
         }
 
         DropdownMenu(
@@ -662,7 +730,6 @@ private fun VesperTopBar(
 private fun UserProfileAvatar(firstName: String, photoUri: String?) {
   val tokens = VesperTokens.colors
   val initial = firstName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "V"
-
   Box(
     contentAlignment = Alignment.Center,
     modifier =
@@ -679,26 +746,14 @@ private fun UserProfileAvatar(firstName: String, photoUri: String?) {
         contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize().clip(CircleShape),
         loading = {
-          Text(
-            text = initial,
-            style = MaterialTheme.typography.labelMedium,
-            color = tokens.textPrimary,
-          )
+          Text(text = initial, style = MaterialTheme.typography.labelMedium, color = tokens.textPrimary)
         },
         error = {
-          Text(
-            text = initial,
-            style = MaterialTheme.typography.labelMedium,
-            color = tokens.textPrimary,
-          )
+          Text(text = initial, style = MaterialTheme.typography.labelMedium, color = tokens.textPrimary)
         },
       )
     } else {
-      Text(
-        text = initial,
-        style = MaterialTheme.typography.labelMedium,
-        color = tokens.textPrimary,
-      )
+      Text(text = initial, style = MaterialTheme.typography.labelMedium, color = tokens.textPrimary)
     }
   }
 }
@@ -712,7 +767,6 @@ private fun CenteredGreetingEmptyState(
   var visible by remember { mutableStateOf(false) }
   LaunchedEffect(Unit) { visible = true }
 
-  // Vertically and horizontally centered with generous negative space and zero suggestion cards
   Box(
     contentAlignment = Alignment.Center,
     modifier = modifier.padding(horizontal = 24.dp, vertical = 24.dp).padding(bottom = 84.dp),
@@ -766,31 +820,31 @@ private fun UserPillBubble(message: ChatMessage) {
           color = tokens.accentSilverBlue,
         )
       }
-      Text(
-        text = message.text,
-        style = MaterialTheme.typography.bodyLarge,
-        color = tokens.textPrimary,
-      )
+      Text(text = message.text, style = MaterialTheme.typography.bodyLarge, color = tokens.textPrimary)
     }
   }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AssistantResponseBlock(
   message: ChatMessage,
   isCopied: Boolean,
   isSpeaking: Boolean,
+  onSelectAppFromChooser: (InstalledAppInfo) -> Unit,
   onCopy: () -> Unit,
   onSpeak: () -> Unit,
 ) {
   val tokens = VesperTokens.colors
   val tagLabel =
-    if (message.tag == ResponseTag.RESEARCH) {
-      stringResource(R.string.tag_research)
-    } else {
-      stringResource(R.string.tag_local_action)
+    when (message.category ?: ResponseCategory.LOCAL_ACTION) {
+      ResponseCategory.LOCAL_ACTION -> stringResource(R.string.tag_local_action)
+      ResponseCategory.RESEARCH -> stringResource(R.string.tag_research)
+      ResponseCategory.BEAST_RESEARCH -> stringResource(R.string.tag_beast_research)
     }
-  val dotColor = if (message.tag == ResponseTag.RESEARCH) tokens.accentSilverBlue else tokens.statusGreen
+  val dotColor =
+    if (message.category == ResponseCategory.LOCAL_ACTION) tokens.statusGreen
+    else tokens.accentSilverBlue
 
   Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Row(
@@ -798,18 +852,45 @@ private fun AssistantResponseBlock(
       horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
       Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(dotColor))
-      Text(
-        text = tagLabel,
-        style = MaterialTheme.typography.labelSmall,
-        color = tokens.textSecondary,
-      )
+      Text(text = tagLabel, style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary)
     }
 
-    Text(
-      text = message.text,
-      style = MaterialTheme.typography.bodyLarge,
-      color = tokens.textPrimary,
-    )
+    Text(text = message.text, style = MaterialTheme.typography.bodyLarge, color = tokens.textPrimary)
+
+    // Phase 2 Step C: Inline Minimalist Multi-App Chooser Card
+    message.appChooser?.let { chooser ->
+      if (chooser.chosenPackageName == null) {
+        InlineAppChooserCard(
+          candidates = chooser.candidates,
+          onSelectApp = onSelectAppFromChooser,
+        )
+      }
+    }
+
+    // Phase 4: Model Attribution Tags at the bottom
+    if (message.attributionTags.isNotEmpty()) {
+      FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
+        message.attributionTags.forEach { tag ->
+          Box(
+            modifier =
+              Modifier
+                .clip(CircleShape)
+                .background(tokens.elevatedSurface)
+                .hairlineBorder(CircleShape, tokens.hairlineBorder)
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+          ) {
+            Text(
+              text = tag,
+              style = MaterialTheme.typography.labelSmall,
+              color = tokens.textSecondary,
+            )
+          }
+        }
+      }
+    }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
       SubtleIconAction(
@@ -831,6 +912,79 @@ private fun AssistantResponseBlock(
           color = tokens.accentSilverBlue,
           modifier = Modifier.padding(start = 4.dp),
         )
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InlineAppChooserCard(
+  candidates: List<InstalledAppInfo>,
+  onSelectApp: (InstalledAppInfo) -> Unit,
+) {
+  val tokens = VesperTokens.colors
+  val cardShape = RoundedCornerShape(18.dp)
+
+  Surface(
+    color = tokens.elevatedSurface,
+    shape = cardShape,
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .hairlineBorder(cardShape, tokens.capsuleBorder)
+        .testTag("inline_app_chooser_card"),
+  ) {
+    Column(
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+      modifier = Modifier.padding(16.dp),
+    ) {
+      Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+          text = stringResource(R.string.chooser_card_title),
+          style = MaterialTheme.typography.bodyMedium,
+          color = tokens.textPrimary,
+        )
+        Text(
+          text = stringResource(R.string.chooser_card_subtitle),
+          style = MaterialTheme.typography.bodySmall,
+          color = tokens.textSecondary,
+        )
+      }
+
+      FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+      ) {
+        candidates.forEach { app ->
+          val chipShape = RoundedCornerShape(14.dp)
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier =
+              Modifier
+                .minimumInteractiveComponentSize()
+                .clip(chipShape)
+                .background(tokens.userBubble)
+                .hairlineBorder(chipShape, tokens.hairlineBorder)
+                .clickable(role = Role.Button) { onSelectApp(app) }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+          ) {
+            if (app.icon != null) {
+              Image(
+                bitmap = app.icon,
+                contentDescription = app.label,
+                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)),
+              )
+            }
+            Text(
+              text = app.label,
+              style = MaterialTheme.typography.labelMedium,
+              color = tokens.textPrimary,
+              maxLines = 1,
+            )
+          }
+        }
       }
     }
   }
@@ -875,18 +1029,19 @@ private fun SubtleIconAction(
 }
 
 @Composable
-private fun ProcessingIndicator() {
+private fun LiveSynthesisIndicator(statusLine: String) {
   val tokens = VesperTokens.colors
   val pulse by
-    rememberInfiniteTransition(label = "processing").animateFloat(
-      initialValue = 0.25f,
+    rememberInfiniteTransition(label = "synthesis").animateFloat(
+      initialValue = 0.28f,
       targetValue = 1f,
       animationSpec = infiniteRepeatable(tween(650), RepeatMode.Reverse),
-      label = "processing_alpha",
+      label = "synthesis_alpha",
     )
   Row(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(8.dp),
+    modifier = Modifier.testTag("live_synthesis_status"),
   ) {
     Box(
       modifier =
@@ -896,9 +1051,9 @@ private fun ProcessingIndicator() {
           .background(tokens.accentSilverBlue.copy(alpha = pulse)),
     )
     Text(
-      text = stringResource(R.string.tag_processing),
-      style = MaterialTheme.typography.labelSmall,
-      color = tokens.textSecondary,
+      text = statusLine,
+      style = MaterialTheme.typography.bodySmall,
+      color = tokens.accentSilverBlue,
     )
   }
 }
@@ -906,7 +1061,7 @@ private fun ProcessingIndicator() {
 @Composable
 private fun FloatingInputCapsule(
   inputText: String,
-  pendingAttachment: AttachmentKind?,
+  pendingAttachment: AttachmentFile?,
   isListening: Boolean,
   onInputChanged: (String) -> Unit,
   onOpenAttachments: () -> Unit,
@@ -954,12 +1109,16 @@ private fun FloatingInputCapsule(
                 .clip(CircleShape)
                 .background(tokens.userBubble)
                 .hairlineBorder(CircleShape, tokens.hairlineBorder)
-                .padding(start = 12.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                .padding(start = 12.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
+                .testTag("attachment_pill"),
           ) {
             Text(
-              text = attachment.label,
+              text = attachment.displayName,
               style = MaterialTheme.typography.labelMedium,
-              color = tokens.textPrimary,
+              color = tokens.accentSilverBlue,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.widthIn(max = 220.dp),
             )
             IconButton(onClick = onClearAttachment, modifier = Modifier.size(28.dp)) {
               Icon(
@@ -996,11 +1155,8 @@ private fun FloatingInputCapsule(
           if (inputText.isEmpty()) {
             Text(
               text =
-                if (isListening) {
-                  stringResource(R.string.input_listening_placeholder)
-                } else {
-                  stringResource(R.string.input_placeholder)
-                },
+                if (isListening) stringResource(R.string.input_listening_placeholder)
+                else stringResource(R.string.input_placeholder),
               style = MaterialTheme.typography.bodyLarge,
               color = if (isListening) tokens.accentSilverBlue else tokens.textSecondary,
               maxLines = 1,
@@ -1095,9 +1251,14 @@ private fun FloatingInputCapsule(
 private fun VesperDrawerContent(
   threads: List<ConversationThread>,
   activeThreadId: String?,
+  isAccessibilityTriggerActive: Boolean,
+  hasAnyAiKey: Boolean,
   onNewChat: () -> Unit,
   onSelectThread: (ConversationThread) -> Unit,
-  onOpenVault: () -> Unit,
+  onOpenPowerSettings: () -> Unit,
+  onOpenAccessibilitySettings: () -> Unit,
+  onOpenVaultApps: () -> Unit,
+  onOpenFreeAiKeys: () -> Unit,
   onSignOut: () -> Unit,
 ) {
   val tokens = VesperTokens.colors
@@ -1109,7 +1270,7 @@ private fun VesperDrawerContent(
     drawerShape = drawerShape,
     modifier =
       Modifier
-        .widthIn(max = 312.dp)
+        .widthIn(max = 320.dp)
         .fillMaxHeight()
         .drawBehind {
           drawLine(
@@ -1126,7 +1287,7 @@ private fun VesperDrawerContent(
           .fillMaxHeight()
           .statusBarsPadding()
           .navigationBarsPadding()
-          .padding(horizontal = 20.dp, vertical = 18.dp),
+          .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
       Text(
         text = stringResource(R.string.drawer_brand_title),
@@ -1134,7 +1295,7 @@ private fun VesperDrawerContent(
         color = tokens.textSecondary,
       )
 
-      Spacer(modifier = Modifier.height(18.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
       val newChatShape = RoundedCornerShape(14.dp)
       Row(
@@ -1148,7 +1309,7 @@ private fun VesperDrawerContent(
             .background(tokens.userBubble)
             .hairlineBorder(newChatShape, tokens.capsuleBorder)
             .clickable(role = Role.Button, onClick = onNewChat)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 11.dp)
             .testTag("drawer_new_chat"),
       ) {
         Icon(
@@ -1164,7 +1325,63 @@ private fun VesperDrawerContent(
         )
       }
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(18.dp))
+
+      // Phase 3: Hardware Button Triggers Setup Card
+      val cardShape = RoundedCornerShape(16.dp)
+      Surface(
+        color = tokens.canvasBackground.copy(alpha = 0.5f),
+        shape = cardShape,
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .hairlineBorder(cardShape, tokens.hairlineBorder)
+            .testTag("drawer_hardware_card"),
+      ) {
+        Column(
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+          modifier = Modifier.padding(12.dp),
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+          ) {
+            Icon(
+              imageVector = Icons.Outlined.Bolt,
+              contentDescription = null,
+              tint = tokens.accentSilverBlue,
+              modifier = Modifier.size(14.dp),
+            )
+            Text(
+              text = stringResource(R.string.drawer_hardware_triggers),
+              style = MaterialTheme.typography.labelSmall,
+              color = tokens.textSecondary,
+            )
+          }
+
+          HardwareTriggerRow(
+            icon = Icons.Outlined.PowerSettingsNew,
+            label = stringResource(R.string.drawer_enable_power_launch),
+            activeBadge = null,
+            testTag = "btn_enable_power_launch",
+            onClick = onOpenPowerSettings,
+          )
+          HardwareTriggerRow(
+            icon = Icons.Outlined.VolumeDown,
+            label = stringResource(R.string.drawer_enable_volume_trigger),
+            activeBadge = if (isAccessibilityTriggerActive) "ON" else "SETUP",
+            testTag = "btn_enable_volume_trigger",
+            onClick = onOpenAccessibilitySettings,
+          )
+          Text(
+            text = stringResource(R.string.drawer_volume_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = tokens.textMuted,
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(16.dp))
 
       Text(
         text = stringResource(R.string.drawer_recent_threads),
@@ -1173,7 +1390,7 @@ private fun VesperDrawerContent(
         modifier = Modifier.padding(horizontal = 4.dp),
       )
 
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(8.dp))
 
       LazyColumn(
         modifier = Modifier.weight(1f),
@@ -1195,7 +1412,7 @@ private fun VesperDrawerContent(
                   else Modifier,
                 )
                 .clickable(role = Role.Button) { onSelectThread(thread) }
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 9.dp),
           ) {
             Text(
               text = thread.title,
@@ -1216,18 +1433,28 @@ private fun VesperDrawerContent(
       }
 
       HorizontalDivider(thickness = 1.dp, color = tokens.hairlineBorder)
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(6.dp))
 
       DrawerFooterRow(
-        icon = Icons.Outlined.Tune,
-        label = stringResource(R.string.drawer_vault_settings),
+        icon = Icons.Outlined.Apps,
+        label = stringResource(R.string.drawer_vault_connected_apps),
+        badge = null,
         tint = tokens.textPrimary,
-        testTag = "drawer_vault_settings",
-        onClick = onOpenVault,
+        testTag = "drawer_vault_apps",
+        onClick = onOpenVaultApps,
+      )
+      DrawerFooterRow(
+        icon = Icons.Outlined.Key,
+        label = stringResource(R.string.drawer_free_ai_keys),
+        badge = if (hasAnyAiKey) "READY" else "ADD",
+        tint = tokens.textPrimary,
+        testTag = "drawer_free_ai_keys",
+        onClick = onOpenFreeAiKeys,
       )
       DrawerFooterRow(
         icon = Icons.AutoMirrored.Outlined.Logout,
         label = stringResource(R.string.drawer_sign_out),
+        badge = null,
         tint = tokens.textSecondary,
         testTag = "drawer_sign_out",
         onClick = onSignOut,
@@ -1237,13 +1464,58 @@ private fun VesperDrawerContent(
 }
 
 @Composable
+private fun HardwareTriggerRow(
+  icon: ImageVector,
+  label: String,
+  activeBadge: String?,
+  testTag: String,
+  onClick: () -> Unit,
+) {
+  val tokens = VesperTokens.colors
+  val shape = RoundedCornerShape(12.dp)
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .minimumInteractiveComponentSize()
+        .clip(shape)
+        .background(tokens.userBubble)
+        .hairlineBorder(shape, tokens.hairlineBorder)
+        .clickable(role = Role.Button, onClick = onClick)
+        .padding(horizontal = 10.dp, vertical = 9.dp)
+        .testTag(testTag),
+  ) {
+    Icon(imageVector = icon, contentDescription = null, tint = tokens.textPrimary, modifier = Modifier.size(16.dp))
+    Text(
+      text = label,
+      style = MaterialTheme.typography.bodySmall,
+      color = tokens.textPrimary,
+      modifier = Modifier.weight(1f),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+    if (activeBadge != null) {
+      Text(
+        text = activeBadge,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (activeBadge == "ON") tokens.statusGreen else tokens.accentSilverBlue,
+      )
+    }
+  }
+}
+
+@Composable
 private fun DrawerFooterRow(
   icon: ImageVector,
   label: String,
+  badge: String?,
   tint: Color,
   testTag: String,
   onClick: () -> Unit,
 ) {
+  val tokens = VesperTokens.colors
   Row(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1253,11 +1525,18 @@ private fun DrawerFooterRow(
         .minimumInteractiveComponentSize()
         .clip(RoundedCornerShape(14.dp))
         .clickable(role = Role.Button, onClick = onClick)
-        .padding(horizontal = 12.dp, vertical = 12.dp)
+        .padding(horizontal = 10.dp, vertical = 10.dp)
         .testTag(testTag),
   ) {
     Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-    Text(text = label, style = MaterialTheme.typography.bodyMedium, color = tint)
+    Text(text = label, style = MaterialTheme.typography.bodyMedium, color = tint, modifier = Modifier.weight(1f))
+    if (badge != null) {
+      Text(
+        text = badge,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (badge == "READY") tokens.statusGreen else tokens.accentSilverBlue,
+      )
+    }
   }
 }
 
@@ -1299,203 +1578,48 @@ private fun PrivacyFloatingBanner(
   }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AttachmentBottomSheet(
+private fun AutomationProgressPill(
+  progress: AutomationProgressState,
   onDismiss: () -> Unit,
-  onSelect: (AttachmentKind) -> Unit,
+  modifier: Modifier = Modifier,
 ) {
   val tokens = VesperTokens.colors
-  ModalBottomSheet(
-    onDismissRequest = onDismiss,
-    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    containerColor = tokens.elevatedSurface,
-    contentColor = tokens.textPrimary,
-    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+  AnimatedVisibility(
+    visible = !progress.statusText.isNullOrBlank(),
+    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.94f),
+    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.96f),
+    modifier = modifier,
   ) {
-    Column(
-      horizontalAlignment = Alignment.CenterHorizontally,
-      modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 16.dp),
-    ) {
-      Text(
-        text = stringResource(R.string.sheet_attach_title),
-        style = MaterialTheme.typography.titleMedium,
-        color = tokens.textPrimary,
-      )
-      Spacer(modifier = Modifier.height(24.dp))
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        SheetCircleOption(Icons.Outlined.CameraAlt, stringResource(R.string.attach_camera)) {
-          onSelect(AttachmentKind.CAMERA)
-        }
-        SheetCircleOption(Icons.Outlined.PhotoLibrary, stringResource(R.string.attach_gallery)) {
-          onSelect(AttachmentKind.GALLERY)
-        }
-        SheetCircleOption(Icons.Outlined.Description, stringResource(R.string.attach_document)) {
-          onSelect(AttachmentKind.DOCUMENT)
-        }
-      }
-      Spacer(modifier = Modifier.height(20.dp))
-    }
-  }
-}
-
-@Composable
-private fun SheetCircleOption(icon: ImageVector, label: String, onClick: () -> Unit) {
-  val tokens = VesperTokens.colors
-  Column(
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(10.dp),
-    modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick).padding(8.dp),
-  ) {
-    Box(
-      contentAlignment = Alignment.Center,
+    Surface(
+      color = tokens.drawerSurface,
+      shape = CircleShape,
       modifier =
         Modifier
-          .size(60.dp)
-          .clip(CircleShape)
-          .background(tokens.userBubble)
-          .hairlineBorder(CircleShape, tokens.capsuleBorder),
+          .hairlineBorder(CircleShape, tokens.focusedBorder)
+          .clickable { onDismiss() }
+          .testTag("automation_progress_pill"),
     ) {
-      Icon(imageVector = icon, contentDescription = label, tint = tokens.textPrimary, modifier = Modifier.size(22.dp))
-    }
-    Text(text = label, style = MaterialTheme.typography.labelMedium, color = tokens.textSecondary)
-  }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun VaultSettingsBottomSheet(
-  localSandbox: Boolean,
-  zeroListening: Boolean,
-  onToggleSandbox: (Boolean) -> Unit,
-  onToggleZeroListening: (Boolean) -> Unit,
-  onClearHistory: () -> Unit,
-  onDismiss: () -> Unit,
-) {
-  val tokens = VesperTokens.colors
-  ModalBottomSheet(
-    onDismissRequest = onDismiss,
-    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    containerColor = tokens.elevatedSurface,
-    contentColor = tokens.textPrimary,
-    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-  ) {
-    Column(
-      verticalArrangement = Arrangement.spacedBy(16.dp),
-      modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 14.dp),
-    ) {
-      Text(text = stringResource(R.string.vault_title), style = MaterialTheme.typography.titleMedium, color = tokens.textPrimary)
-      HorizontalDivider(color = tokens.hairlineBorder)
-      VaultSwitchRow(stringResource(R.string.vault_sandbox_label), stringResource(R.string.vault_sandbox_desc), localSandbox, onToggleSandbox)
-      VaultSwitchRow(stringResource(R.string.vault_zero_listening_label), stringResource(R.string.vault_zero_listening_desc), zeroListening, onToggleZeroListening)
-      val clearShape = RoundedCornerShape(14.dp)
       Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .minimumInteractiveComponentSize()
-            .clip(clearShape)
-            .background(tokens.userBubble)
-            .hairlineBorder(clearShape, tokens.hairlineBorder)
-            .clickable(role = Role.Button, onClick = onClearHistory)
-            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
       ) {
-        Icon(imageVector = Icons.Outlined.DeleteOutline, contentDescription = null, tint = tokens.textSecondary, modifier = Modifier.size(18.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text = stringResource(R.string.vault_clear_sessions), style = MaterialTheme.typography.bodyMedium, color = tokens.textPrimary)
+        Box(
+          modifier =
+            Modifier
+              .size(6.dp)
+              .clip(CircleShape)
+              .background(if (progress.isCompleted) tokens.statusGreen else tokens.accentSilverBlue),
+        )
+        Text(
+          text = progress.statusText.orEmpty(),
+          style = MaterialTheme.typography.labelLarge,
+          color = tokens.textPrimary,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
       }
-      Spacer(modifier = Modifier.height(12.dp))
     }
-  }
-}
-
-@Composable
-private fun VaultSwitchRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-  val tokens = VesperTokens.colors
-  Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-      Text(text = title, style = MaterialTheme.typography.bodyMedium, color = tokens.textPrimary)
-      Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary)
-    }
-    Switch(
-      checked = checked,
-      onCheckedChange = onCheckedChange,
-      colors =
-        SwitchDefaults.colors(
-          checkedThumbColor = tokens.canvasBackground,
-          checkedTrackColor = tokens.accentSilverBlue,
-          uncheckedThumbColor = tokens.textSecondary,
-          uncheckedTrackColor = tokens.userBubble,
-        ),
-    )
-  }
-}
-
-private fun generateMockResponse(
-  prompt: String,
-  mode: ExecutionMode,
-  attachment: AttachmentKind?,
-): Pair<ResponseTag, String> {
-  val lower = prompt.lowercase()
-  val tag =
-    when {
-      mode == ExecutionMode.LOCAL_ONLY -> ResponseTag.LOCAL_ACTION
-      mode == ExecutionMode.CLOUD_RESEARCH -> ResponseTag.RESEARCH
-      lower.contains("open") || lower.contains("send") || lower.contains("message") ||
-        lower.contains("compress") || attachment != null -> ResponseTag.LOCAL_ACTION
-      else -> ResponseTag.RESEARCH
-    }
-  val text =
-    when {
-      attachment == AttachmentKind.CAMERA ->
-        "Captured frame in Vesper's ephemeral sandbox. Zero EXIF or location metadata retained."
-      attachment == AttachmentKind.GALLERY ->
-        "Image context staged locally. Ready for analysis, text extraction, or app handoff."
-      attachment == AttachmentKind.DOCUMENT ->
-        "Document parsed in local memory. Ask for a concise brief, key citations, or compression."
-      tag == ResponseTag.LOCAL_ACTION ->
-        "Executed inside Vesper's local sandbox (${mode.menuTitle}) with no background telemetry for \"$prompt\"."
-      else ->
-        "Synthesized in ${mode.menuTitle} mode: breaking \"$prompt\" down into clean, verifiable steps with minimal noise."
-    }
-  return tag to text
-}
-
-private fun defaultRecentThreads(): List<ConversationThread> =
-  listOf(
-    ConversationThread(
-      id = "t1",
-      title = "Q4 Strategy Brief",
-      preview = "Distilled 12 key action items",
-      timeAgo = "2h ago",
-      messages =
-        listOf(
-          ChatMessage("t1_u", isUser = true, text = "Summarize the Q4 Strategy Brief PDF", attachmentLabel = "Document Attached"),
-          ChatMessage("t1_a", isUser = false, tag = ResponseTag.RESEARCH, text = "Distilled the Q4 Strategy Brief into three core priorities: latency reduction under 120ms, zero-trust local sandboxing, and streamlined onboarding."),
-        ),
-    ),
-    ConversationThread(
-      id = "t2",
-      title = "Device Focus Schedule",
-      preview = "Staged Do Not Disturb until 18:00",
-      timeAgo = "Yesterday",
-      messages =
-        listOf(
-          ChatMessage("t2_u", isUser = true, text = "Enable deep focus mode until 6 PM"),
-          ChatMessage("t2_a", isUser = false, tag = ResponseTag.LOCAL_ACTION, text = "Staged Focus profile locally until 18:00 with priority calls preserved."),
-        ),
-    ),
-  )
-
-@Preview(showBackground = true, backgroundColor = 0xFF0A0A0C)
-@Composable
-private fun HomeScreenPreview() {
-  VesperTheme {
-    HomeScreen(
-      userProfile = UserProfile(firstName = "Alex", email = "alex@example.com"),
-      onSignOut = {},
-    )
   }
 }

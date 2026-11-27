@@ -9,32 +9,28 @@
     <string name="login_signing_in">Authenticating…</string>
     <string name="login_web_client_id_hint">Configure WEB_CLIENT_ID in LoginScreen.kt for live Google Sign-In, or tap Continue as Guest.</string>
 
-    <!-- Top Bar -->
+    <!-- Top Bar & Multi-LLM Model Selector -->
     <string name="cd_open_navigation_drawer">Open navigation drawer</string>
-    <string name="cd_execution_mode_selector">Select execution mode</string>
+    <string name="cd_select_ai_model">Select free AI model</string>
     <string name="cd_privacy_sandbox_status">Privacy and sandbox status</string>
     <string name="cd_user_avatar">User profile avatar</string>
     <string name="privacy_sandbox_banner">Mic Standby • Local Sandbox Active</string>
 
-    <!-- Execution Modes -->
-    <string name="mode_auto_hybrid">Auto Hybrid</string>
-    <string name="mode_local_only">Local Only</string>
-    <string name="mode_cloud_research">Cloud Research</string>
-    <string name="mode_pill_hybrid">Hybrid</string>
-    <string name="mode_pill_local">Local</string>
-    <string name="mode_pill_cloud">Cloud</string>
-
-    <!-- Empty State -->
+    <!-- Empty State (Zero Suggestion Cards) -->
     <string name="empty_greeting_prefix">Hi %1$s</string>
     <string name="empty_subtitle">What\'s on your mind</string>
 
-    <!-- Chat Feed -->
+    <!-- Chat Feed & Tags -->
     <string name="tag_local_action">LOCAL ACTION</string>
+    <string name="tag_app_handoff">APP HANDOFF</string>
     <string name="tag_research">RESEARCH</string>
-    <string name="tag_processing">PROCESSING</string>
+    <string name="tag_beast_research">BEAST DEEP RESEARCH</string>
+    <string name="tag_processing">SYNTHESIZING</string>
     <string name="cd_copy_response">Copy response</string>
     <string name="cd_speak_response">Speak response</string>
     <string name="speaking_response">Reading aloud…</string>
+    <string name="chooser_card_title">Multiple compatible apps found</string>
+    <string name="chooser_card_subtitle">Select once to launch and remember for this task</string>
 
     <!-- Input Capsule -->
     <string name="input_placeholder">Ask or command…</string>
@@ -54,17 +50,53 @@
     <string name="drawer_brand_title">VESPER</string>
     <string name="drawer_new_chat">New Chat</string>
     <string name="drawer_recent_threads">RECENT THREADS</string>
-    <string name="drawer_vault_settings">Vault &amp; Settings</string>
+    <string name="drawer_hardware_triggers">HARDWARE BUTTON TRIGGERS</string>
+    <string name="drawer_enable_power_launch">Enable Power Button Launch</string>
+    <string name="drawer_enable_volume_trigger">Enable Volume Button Trigger</string>
+    <string name="drawer_volume_hint">Hold Volume Down (750ms) or Volume Up + Down (3s)</string>
+    <string name="drawer_vault_connected_apps">Vault &amp; Connected Apps</string>
+    <string name="drawer_free_ai_keys">Free AI Keys</string>
     <string name="drawer_sign_out">Sign Out</string>
 
-    <!-- Vault & Settings Sheet -->
-    <string name="vault_title">Vault &amp; Settings</string>
-    <string name="vault_subtitle">Local-first controls and sandbox guarantees</string>
-    <string name="vault_sandbox_label">Local Sandbox Isolation</string>
-    <string name="vault_sandbox_desc">Restricts app actions to explicit user triggers</string>
-    <string name="vault_zero_listening_label">Zero Background Listening</string>
-    <string name="vault_zero_listening_desc">Microphone activates only on direct tap</string>
-    <string name="vault_haptics_label">Tactile Micro-Feedback</string>
-    <string name="vault_haptics_desc">Subtle haptic confirmation for local actions</string>
-    <string name="vault_clear_sessions">Clear Local Session History</string>
+    <!-- Vault & Connected Apps Screen -->
+    <string name="vault_apps_title">Vault &amp; Connected Apps</string>
+    <string name="vault_apps_subtitle">Control which installed apps Vesper can resolve and launch locally</string>
+    <string name="vault_apps_search_hint">Search installed apps…</string>
+    <string name="vault_apps_empty">No matching installed apps found</string>
+
+    <!-- Free AI Keys Sheet -->
+    <string name="keys_title">Free AI Keys</string>
+    <string name="keys_subtitle">Zero credit card required. Stored in hardware-backed EncryptedSharedPreferences.</string>
+    <string name="keys_gemini_label">Google AI Studio (Gemini) Key</string>
+    <string name="keys_gemini_hint">AIza…</string>
+    <string name="keys_openrouter_label">OpenRouter / Groq Free Key</string>
+    <string name="keys_openrouter_hint">sk-or-… or gsk_…</string>
+    <string name="keys_save">Save Encrypted Keys</string>
+    <string name="keys_clear">Clear Keys</string>
+    <string name="keys_saved_badge">Encrypted on-device</string>
+
+    <!-- Floating Voice Overlay (Phase 3) -->
+    <string name="accessibility_service_label">Vesper Hardware Shortcut</string>
+    <string name="accessibility_service_description">Detects a 750ms Volume Down hold or 3-second Volume Up + Down hold to open Vesper without background microphone listening.</string>
+    <string name="overlay_listening">Listening…</string>
+    <string name="overlay_permission_needed">Microphone permission needed for single-command capture</string>
+    <string name="overlay_grant_mic">Allow Mic</string>
+    <string name="overlay_retry">Tap to listen</string>
+    <string name="cd_close_overlay">Close voice overlay</string>
+
+    <!-- Phase 5: Save Once Password Vault & Automation -->
+    <string name="save_once_title">Save %1$s Login Once</string>
+    <string name="save_once_badge">Encrypted on your phone\'s security chip. You\'ll never need to type this again.</string>
+    <string name="save_once_username_label">Username / Email</string>
+    <string name="save_once_username_hint">name@example.com or @handle</string>
+    <string name="save_once_password_label">Password</string>
+    <string name="save_once_password_hint">Enter password</string>
+    <string name="save_once_button">Save &amp; Continue</string>
+    <string name="vault_tab_connected_apps">Connected Apps</string>
+    <string name="vault_tab_saved_logins">Saved Logins</string>
+    <string name="vault_add_login">Add Login</string>
+    <string name="vault_biometric_lock_label">Biometric Lock for Auto-Fill</string>
+    <string name="vault_biometric_lock_desc">Verify fingerprint, face, or PIN before filling passwords</string>
+    <string name="vault_empty_logins">No saved logins yet. Save an account once to automate future logins.</string>
+    <string name="vault_toggle_password_visibility">Toggle password visibility</string>
 </resources>
